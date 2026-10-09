@@ -45,47 +45,7 @@ document.querySelectorAll(".files .dl").forEach(link => {
   });
 });
 
-// Фото загружается через Wikimedia REST API, а не через HTML статьи.
-// Любой сетевой сбой оставляет книжную заглушку; он не мешает работе страницы.
-async function loadPortrait() {
-  const status = document.getElementById("photoStatus");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    // В русской статье главное изображение — марка. Казахская статья содержит портрет.
-    const title = encodeURIComponent("Мағжан_Бекенұлы_Жұмабаев");
-    const response = await fetch(`https://kk.wikipedia.org/api/rest_v1/page/summary/${title}`, {
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error("Portrait unavailable");
-    const data = await response.json();
-    const source = data.originalimage?.source || data.thumbnail?.source;
-    if (!source) throw new Error("No portrait");
-    const url = new URL(source);
-    if (url.protocol !== "https:" || url.hostname !== "upload.wikimedia.org") {
-      throw new Error("Unexpected image URL");
-    }
-    const image = new Image();
-    image.alt = text("Мағжан Жұмабаевтың портреті", "Портрет Магжана Жумабаева");
-    image.decoding = "async";
-    const loaded = new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-    });
-    image.src = url.href;
-    await Promise.race([
-      loaded,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Image timeout")), 8000)),
-    ]);
-    document.getElementById("photoFrame").replaceChildren(image);
-    status.textContent = "";
-  } catch (_) {
-    status.textContent = text("Портрет жүктелмеді. Уикипедиядағы сілтемені ашуға болады.", "Не удалось загрузить портрет. Можно открыть ссылку на Википедию.");
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-loadPortrait();
+// The restored portrait is bundled with the site and works without a network request.
 
 // Ключи ответов перенесены из DOCX заказчика, не создаются автоматически.
 const ANSWERS = [1, 1, 2, 2, 1, 0, 1, 0, 1, 0];
