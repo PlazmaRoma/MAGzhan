@@ -291,8 +291,4 @@ footer { padding: 2.5rem 0 calc(3rem + env(safe-area-inset-bottom, 0px)); }
 
 /* Language editions and translation disclosure. */
 .lang a { text-decoration: none; display: inline-flex; align-items: center; }
-.translation-notice { padding-top: 1.5rem; }
-.translation-notice > div { border-left: 2px solid var(--accent); background: var(--panel); padding: 1rem 1.2rem; font: .9rem/1.6 var(--sans); }
-.translation-notice h2 { margin: 0 0 .4rem; color: var(--accent); font-size: 1rem; }
-.translation-notice p { margin: 0; max-width: 100ch; }
 .material-download .download-language { margin-top: .35rem; color: var(--accent); font-size: .85rem; }
