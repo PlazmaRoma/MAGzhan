@@ -4,18 +4,16 @@
 // При добавлении файла замените data-ready на true. Затем можно отключить STUB_MODE.
 const STUB_MODE = true;
 
-// Казахские подписи и сообщения вычитаны 07.10.2026. TODO: финально согласовать регистр обращения с преподавателем.
-// Сейчас доступен только kk; русская версия будет добавлена после перевода материала.
-const AVAILABLE_LANGUAGES = ["kk"];
-function rememberLanguage() {
-  let saved = "kk";
-  try { saved = localStorage.getItem("magzhan.language") || "kk"; } catch (_) {}
-  const language = AVAILABLE_LANGUAGES.includes(saved) ? saved : "kk";
-  document.documentElement.lang = language;
-  try { localStorage.setItem("magzhan.language", language); } catch (_) {}
-}
-rememberLanguage();
-document.querySelector('[data-lang="kk"]').addEventListener("click", rememberLanguage);
+// The URL selects the edition; switching languages preserves the current section.
+const IS_RUSSIAN = document.documentElement.lang === "ru";
+function text(kk, ru) { return IS_RUSSIAN ? ru : kk; }
+document.querySelectorAll(".lang a").forEach(link => {
+  link.addEventListener("click", () => {
+    const target = new URL(link.href);
+    target.hash = location.hash;
+    link.href = target.href;
+  });
+});
 
 // Оглавление открывает выбранную главу. Само раскрытие details работает и без JS.
 function openChapter(hash) {
@@ -42,7 +40,7 @@ document.querySelectorAll(".files .dl").forEach(link => {
     if (link.dataset.ready === "true") return;
     if (STUB_MODE) {
       event.preventDefault();
-      showToast("Бұл материал дайындалуда. Кейінірек жүктеп алуға болады.");
+      showToast(text("Бұл материал дайындалуда. Кейінірек жүктеп алуға болады.", "Этот материал готовится. Его можно будет скачать позже."));
     }
   });
 });
@@ -68,7 +66,7 @@ async function loadPortrait() {
       throw new Error("Unexpected image URL");
     }
     const image = new Image();
-    image.alt = "Мағжан Жұмабаевтың портреті";
+    image.alt = text("Мағжан Жұмабаевтың портреті", "Портрет Магжана Жумабаева");
     image.decoding = "async";
     const loaded = new Promise((resolve, reject) => {
       image.onload = resolve;
@@ -82,7 +80,7 @@ async function loadPortrait() {
     document.getElementById("photoFrame").replaceChildren(image);
     status.textContent = "";
   } catch (_) {
-    status.textContent = "Портрет жүктелмеді. Уикипедиядағы сілтемені ашуға болады.";
+    status.textContent = text("Портрет жүктелмеді. Уикипедиядағы сілтемені ашуға болады.", "Не удалось загрузить портрет. Можно открыть ссылку на Википедию.");
   } finally {
     clearTimeout(timeout);
   }
@@ -111,7 +109,7 @@ function clearGrading() {
 }
 function updateProgress() {
   const answered = questions.filter(q => q.querySelector("input:checked")).length;
-  progress.textContent = `${answered} / ${questions.length} сұраққа жауап берілді`;
+  progress.textContent = IS_RUSSIAN ? `Отвечено на ${answered} из ${questions.length} вопросов` : `${answered} / ${questions.length} сұраққа жауап берілді`;
 }
 quizForm.addEventListener("change", () => {
   clearGrading();
@@ -130,17 +128,17 @@ quizForm.addEventListener("submit", event => {
     if (!correct) checked.closest(".option").classList.add("is-wrong");
     const feedback = question.querySelector(".answer-feedback");
     const correctText = correctInput.closest(".option").lastElementChild.textContent;
-    feedback.textContent = correct ? "Дұрыс жауап." : `Дұрыс жауап: ${correctText}.`;
+    feedback.textContent = correct ? text("Дұрыс жауап.", "Верный ответ.") : text(`Дұрыс жауап: ${correctText}.`, `Верный ответ: ${correctText}.`);
     feedback.classList.add(correct ? "correct" : "wrong");
     feedback.hidden = false;
     checked.setAttribute("aria-describedby", feedback.id);
   });
   document.getElementById("resultScore").textContent = `${score} / ${questions.length}`;
   document.getElementById("resultMessage").textContent = score === 10
-    ? "Өте жақсы! Барлық сұраққа дұрыс жауап бердіңіз."
+    ? text("Өте жақсы! Барлық сұраққа дұрыс жауап бердіңіз.", "Отлично! Вы правильно ответили на все вопросы.")
     : score >= 7
-      ? "Жақсы нәтиже! Қате жауаптарды қарап, біліміңізді толықтырыңыз."
-      : "Зерттеу бөлімін қайта оқып, өзіңізді тағы бір рет тексеріңіз.";
+      ? text("Жақсы нәтиже! Қате жауаптарды қарап, біліміңізді толықтырыңыз.", "Хороший результат! Разберите ошибки и дополните свои знания.")
+      : text("Зерттеу бөлімін қайта оқып, өзіңізді тағы бір рет тексеріңіз.", "Перечитайте раздел исследования и проверьте себя ещё раз.");
   result.hidden = false;
   result.focus({ preventScroll: true });
   result.scrollIntoView({ block: "center", behavior: "auto" });
@@ -149,7 +147,7 @@ quizForm.addEventListener("reset", () => {
   clearGrading();
   // Native reset clears inputs after the event. Reset the counter explicitly;
   // a microtask can run before the browser's default action.
-  progress.textContent = `0 / ${questions.length} сұраққа жауап берілді`;
+  progress.textContent = IS_RUSSIAN ? `Отвечено на 0 из ${questions.length} вопросов` : `0 / ${questions.length} сұраққа жауап берілді`;
   setTimeout(() => {
     questions[0].querySelector("input").focus({ preventScroll: true });
     questions[0].scrollIntoView({ block: "center", behavior: "auto" });
