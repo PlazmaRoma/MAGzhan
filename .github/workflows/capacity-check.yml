@@ -1,0 +1,67 @@
+name: Temporary MAGzhan capacity check
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  capacity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download exactly 1 MB with 100 simultaneous clients
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import hashlib, json, math, statistics, subprocess, tempfile, threading, time
+          url = 'https://plazmaroma.github.io/MAGzhan/capacity-check-20261012.bin'
+          expected_hash = '1bff01989bc9e579fde0c93d22655c148598207a837b8a818056dee10358344b'
+          barrier = threading.Barrier(100)
+          def download(client):
+              with tempfile.TemporaryDirectory(prefix='magzhan-capacity-') as folder:
+                  body = Path(folder) / 'payload.bin'
+                  command = ['curl', '--silent', '--show-error', '--connect-timeout', '10',
+                             '--max-time', '30', '--retry', '0', '--max-filesize', '1000000',
+                             '--header', 'Accept-Encoding: identity', '--user-agent',
+                             'MAGzhan-authorized-capacity-check/1.0', '--output', str(body),
+                             '--write-out', '%{http_code}\t%{size_download}\t%{time_total}\t%{time_starttransfer}\t%{http_version}\n',
+                             '--url', url]
+                  barrier.wait(timeout=15)
+                  start = time.perf_counter()
+                  process = subprocess.run(command, capture_output=True, text=True, timeout=35)
+                  result = {'client': client, 'wall_seconds': time.perf_counter()-start,
+                            'exit_code': process.returncode, 'error': process.stderr.strip() or None}
+                  fields = process.stdout.strip().split('\t')
+                  if len(fields) == 5:
+                      code, size, elapsed, ttfb, version = fields
+                      result.update(status=int(code), body_bytes=int(float(size)), seconds=float(elapsed),
+                                    ttfb_seconds=float(ttfb), http_version=version)
+                  result['actual_saved_bytes'] = body.stat().st_size if body.exists() else 0
+                  result['sha256_matches'] = body.exists() and hashlib.sha256(body.read_bytes()).hexdigest() == expected_hash
+                  result['ok'] = process.returncode == 0 and result.get('status') == 200 and result['sha256_matches']
+                  return result
+          start = time.perf_counter()
+          clients = []
+          with ThreadPoolExecutor(max_workers=100) as executor:
+              futures = [executor.submit(download, i+1) for i in range(100)]
+              for future in as_completed(futures):
+                  clients.append(future.result())
+          times = sorted(c['wall_seconds'] for c in clients)
+          report = {'timestamp_utc': datetime.now(timezone.utc).isoformat(), 'url': url,
+                    'location': 'GitHub-hosted ubuntu-latest runner; one independent internet connection',
+                    'method': '100 synchronized independent curl clients; 1 MB each; no retries; SHA256 validation',
+                    'summary': {'clients': len(clients), 'successful': sum(c['ok'] for c in clients),
+                                'http_errors': sum(c.get('status', 0) >= 400 for c in clients),
+                                'no_http_response': sum(c.get('status', 0) == 0 for c in clients),
+                                'rate_limited': sum(c.get('status') == 429 for c in clients),
+                                'transport_errors': sum(c['exit_code'] != 0 for c in clients),
+                                'body_bytes': sum(c['actual_saved_bytes'] for c in clients),
+                                'min_client_bytes': min(c['actual_saved_bytes'] for c in clients),
+                                'median_seconds': statistics.median(times), 'p95_seconds': times[math.ceil(.95*len(times))-1],
+                                'max_seconds': max(times), 'stage_seconds': time.perf_counter()-start},
+                    'clients': sorted(clients, key=lambda c: c['client'])}
+          print('CAPACITY_RESULT=' + json.dumps(report), flush=True)
+          if report['summary']['successful'] != 100:
+              raise SystemExit(1)
+          PY
